@@ -27,7 +27,7 @@ def init_root():
         cert = json.loads(CERT_FILE.read_text())
         return priv, cert
 
-    k = ru.generate_rsa_keys(bits=256)  # demo-размер, сделайте 2048+ в реале
+    k = ru.generate_rsa_keys(bits=256)  # Тестовый размер ключа, для продакшена использовать 2048+ бит
     priv = {"d": k["private"][0], "n": k["private"][1]}
     pub  = {"e": k["public"][0],  "n": k["public"][1]}
 
@@ -48,7 +48,7 @@ root_priv, root_cert = init_root()
 # ---------- модели ----------
 class CSR(BaseModel):
     subject: str
-    pubkey: dict  # {"e": int, "n": int}
+    pubkey: dict  # Открытый ключ в формате {"e": int, "n": int}
 
 # ---------- роуты ----------
 @app.get("/ca_cert")

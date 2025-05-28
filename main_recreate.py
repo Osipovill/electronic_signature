@@ -5,16 +5,16 @@ from rsa_utils import (
     rsa_encrypt, rsa_decrypt, rsa_sign, rsa_verify, is_prime_fermat, is_prime_trial, generate_prime
 )
 
-# Глобальные переменные для ключей (используются в интерфейсе)
-keys_sender = None         # Ключи отправителя (для генерации и заполнения полей)
-keys_receiver = None       # Ключи получателя (для генерации и заполнения полей)
+# Глобальные переменные для хранения ключей
+keys_sender = None         # Ключи отправителя для генерации и заполнения полей
+keys_receiver = None       # Ключи получателя для генерации и заполнения полей
 
-# Буферы для передачи открытых ключей
-sender_pub_buffer = None   # Открытый ключ отправителя (e, n) -> получатель
-receiver_pub_buffer = None # Открытый ключ получателя (e, n) -> отправитель
+# Буферы для обмена открытыми ключами
+sender_pub_buffer = None   # Открытый ключ отправителя (e, n) для получателя
+receiver_pub_buffer = None # Открытый ключ получателя (e, n) для отправителя
 
-# Буфер для передачи зашифрованного сообщения и подписи
-message_buffer = None      # (ciphertext, signature)
+# Буфер для передачи зашифрованного сообщения и цифровой подписи
+message_buffer = None      # Пара (шифротекст, подпись)
 
 # Инициализация окон TKinter
 root_sender = tk.Tk()
@@ -23,31 +23,31 @@ root_sender.title("Отправитель")
 root_receiver = tk.Toplevel(root_sender)
 root_receiver.title("Получатель")
 
-# Переменные для интерфейса (отправитель
-sender_e_var = tk.StringVar()  # e отправителя
-sender_n_var = tk.StringVar()  # n отправителя
-sender_d_var = tk.StringVar()  # d отправителя
+# Переменные интерфейса отправителя
+sender_e_var = tk.StringVar()  # Открытая экспонента отправителя
+sender_n_var = tk.StringVar()  # Модуль отправителя
+sender_d_var = tk.StringVar()  # Закрытая экспонента отправителя
 
-# Открытый ключ получателя (как видит отправитель)
-receiver_e_var = tk.StringVar() # e получателя
-receiver_n_var = tk.StringVar() # n получателя
+# Открытый ключ получателя в интерфейсе отправителя
+receiver_e_var = tk.StringVar() # Открытая экспонента получателя
+receiver_n_var = tk.StringVar() # Модуль получателя
 
-# Переменные для интерфейса (получатель)
-# Собственный ключ получателя
-receiver_e_on_receiver_var = tk.StringVar()  # e получателя (локально)
-receiver_n_on_receiver_var = tk.StringVar()  # n получателя (локально)
-receiver_d_on_receiver_var = tk.StringVar()  # d получателя (локально)
+# Переменные интерфейса получателя
+# Собственные ключи получателя
+receiver_e_on_receiver_var = tk.StringVar()  # Открытая экспонента получателя
+receiver_n_on_receiver_var = tk.StringVar()  # Модуль получателя
+receiver_d_on_receiver_var = tk.StringVar()  # Закрытая экспонента получателя
 
-# Открытый ключ отправителя (как видит получатель)
-sender_pub_on_receiver_e_var = tk.StringVar()  # e отправителя
-sender_pub_on_receiver_n_var = tk.StringVar()  # n отправителя
+# Открытый ключ отправителя в интерфейсе получателя
+sender_pub_on_receiver_e_var = tk.StringVar()  # Открытая экспонента отправителя
+sender_pub_on_receiver_n_var = tk.StringVar()  # Модуль отправителя
 
-# Прочие переменные
-cipher_var = tk.StringVar()        # зашифрованное сообщение (число)
-signature_var = tk.StringVar()       # подпись (число)
-verify_result_var = tk.StringVar()   # результат проверки подписи
+# Служебные переменные интерфейса
+cipher_var = tk.StringVar()        # Зашифрованное сообщение
+signature_var = tk.StringVar()     # Цифровая подпись
+verify_result_var = tk.StringVar() # Результат проверки подписи
 
-# Функции генерации ключей (работают через RSA-функции из rsa_utils)
+# Функции генерации криптографических ключей
 
 def generate_sender_keys():
     """
@@ -91,7 +91,7 @@ def generate_receiver_keys():
         f"d = {d_r}"
     )
 
-# Функции «передачи» (эмуляция)
+# Функции эмуляции передачи данных
 
 def send_sender_pub():
     """
@@ -153,7 +153,7 @@ def get_receiver_pub():
     receiver_pub_buffer = None
     messagebox.showinfo("Получение ключа", "Открытый ключ получателя получен отправителем.")
 
-# ---------- Шифрование и подписание (работает в окне отправителя) ----------
+# Шифрование и формирование цифровой подписи
 
 def encrypt_and_sign_message():
     """
@@ -215,7 +215,7 @@ def send_message():
         return
     messagebox.showinfo("Отправка", "Зашифрованное и подписанное сообщение отправлено получателю.")
 
-# ---------- Расшифрование и проверка подписи (работает в окне получателя) ----------
+# Расшифрование и проверка цифровой подписи
 
 def verify_message():
     """
@@ -261,9 +261,9 @@ def verify_message():
     else:
         messagebox.showinfo("Результат проверки", "Подпись сообщения успешно подтверждена.")
 
-#  Построение интерфейса ОТПРАВИТЕЛЯ
+# Формирование интерфейса отправителя
 
-#  Блок "Подпись" (sender)
+# Блок управления подписью
 frame_sender_sign = tk.LabelFrame(root_sender, text="Отправитель: Для подписи", padx=5, pady=5)
 frame_sender_sign.grid(row=0, column=0, padx=5, pady=5, sticky="nwe")
 
@@ -279,7 +279,7 @@ tk.Entry(frame_sender_sign, textvariable=sender_d_var, width=30).grid(row=2, col
 tk.Button(frame_sender_sign, text="Сформировать ключи", command=generate_sender_keys).grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky="we")
 tk.Button(frame_sender_sign, text="Послать ключ (pub)", command=send_sender_pub).grid(row=4, column=0, columnspan=2, padx=5, pady=5, sticky="we")
 
-# Блок "Для сообщения" (sender)
+# Блок параметров сообщения
 frame_sender_msg = tk.LabelFrame(root_sender, text="Отправитель: Для сообщения", padx=5, pady=5)
 frame_sender_msg.grid(row=0, column=1, padx=5, pady=5, sticky="nwe")
 
@@ -293,23 +293,23 @@ tk.Button(frame_sender_msg, text="Получить ключ (pub)", command=get_
 tk.Button(frame_sender_msg, text="Закодировать и подписать", command=encrypt_and_sign_message).grid(row=2, column=1, padx=5, pady=5, sticky="we")
 tk.Button(frame_sender_msg, text="Послать сообщение", command=send_message).grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky="we")
 
-# Поле для ввода сообщения (sender)
+# Поле ввода сообщения
 tk.Label(root_sender, text="Сообщение:").grid(row=1, column=0, columnspan=2, sticky="w", padx=5)
 message_entry = tk.Text(root_sender, height=5, width=60)
 message_entry.grid(row=2, column=0, columnspan=2, padx=5, pady=5)
 
-# Отображение зашифрованного сообщения и подписи (sender)
+# Отображение зашифрованного сообщения и подписи
 tk.Label(root_sender, text="Зашифрованное сообщение:").grid(row=3, column=0, sticky="w", padx=5)
 tk.Entry(root_sender, textvariable=cipher_var, width=50).grid(row=3, column=1, padx=5, sticky="w")
 
 tk.Label(root_sender, text="Подпись:").grid(row=4, column=0, sticky="w", padx=5)
 tk.Entry(root_sender, textvariable=signature_var, width=50).grid(row=4, column=1, padx=5, sticky="w")
 
-# Добавленный блок: Генерация и проверка простых чисел
+# Блок генерации и проверки простых чисел
 frame_primes = tk.LabelFrame(root_sender, text="Генерация и проверка простых чисел", padx=5, pady=5)
 frame_primes.grid(row=5, column=0, columnspan=2, padx=5, pady=5, sticky="nwe")
 
-# Генерация простого числа:
+# Генерация простого числа
 tk.Label(frame_primes, text="Количество бит:").grid(row=0, column=0, sticky="w")
 prime_bits_entry = tk.Entry(frame_primes, width=10)
 prime_bits_entry.grid(row=0, column=1, sticky="w")
@@ -348,9 +348,9 @@ def check_prime():
 
 tk.Button(frame_primes, text="Проверить число", command=check_prime).grid(row=3, column=1, padx=5, pady=5, sticky="w")
 
+# Формирование интерфейса получателя
 
-# Построение интерфейса ПОЛУЧАТЕЛЯ
-# Ключи получателя (receiver)
+# Блок ключей получателя
 frame_receiver_keys = tk.LabelFrame(root_receiver, text="Получатель: Свои ключи", padx=5, pady=5)
 frame_receiver_keys.grid(row=0, column=0, padx=5, pady=5, sticky="nwe")
 
@@ -366,7 +366,7 @@ tk.Entry(frame_receiver_keys, textvariable=receiver_d_on_receiver_var, width=30)
 tk.Button(frame_receiver_keys, text="Сформировать ключи", command=generate_receiver_keys).grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky="we")
 tk.Button(frame_receiver_keys, text="Послать ключ (pub)", command=send_receiver_pub).grid(row=4, column=0, columnspan=2, padx=5, pady=5, sticky="we")
 
-#Ключ отправителя (receiver)
+# Блок ключа отправителя
 frame_receiver_sender_pub = tk.LabelFrame(root_receiver, text="Получатель: Ключ отправителя", padx=5, pady=5)
 frame_receiver_sender_pub.grid(row=0, column=1, padx=5, pady=5, sticky="nwe")
 
@@ -378,10 +378,10 @@ tk.Entry(frame_receiver_sender_pub, textvariable=sender_pub_on_receiver_n_var, w
 
 tk.Button(frame_receiver_sender_pub, text="Получить ключ (pub)", command=get_sender_pub).grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky="we")
 
-# Кнопка проверки сообщения (receiver)
+# Кнопка проверки сообщения
 tk.Button(root_receiver, text="Получить и проверить сообщение", command=verify_message).grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="we")
 
-# Поле для отображения расшифрованного сообщения (receiver)
+# Поле отображения расшифрованного сообщения
 tk.Label(root_receiver, text="Принятое сообщение:").grid(row=2, column=0, columnspan=2, sticky="w", padx=5)
 received_text = tk.Text(root_receiver, height=5, width=60)
 received_text.grid(row=3, column=0, columnspan=2, padx=5, pady=5)

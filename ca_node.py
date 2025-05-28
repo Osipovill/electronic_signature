@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import rsa_utils as ru
 
-# ---------- подготовка CLI ----------
+# Подготовка параметров командной строки
 parser = argparse.ArgumentParser()
 parser.add_argument("--name", required=True, help="имя УЦ (CA A / CA B)")
 parser.add_argument("--port", type=int, required=True)
@@ -26,7 +26,7 @@ KEY_FILE  = CA_DIR / "ca_key.json"
 CERT_FILE = CA_DIR / "ca_cert.json"
 DB_FILE   = CA_DIR / "clients.json"
 
-# ---------- инициализация ключей ----------
+# Инициализация криптографических ключей
 def init_keys():
     if KEY_FILE.exists():
         key = json.loads(KEY_FILE.read_text())
@@ -39,10 +39,10 @@ def init_keys():
 
 ca_key = init_keys()
 
-# ---------- получение корневого сертификата ----------
+# Получение корневого сертификата
 root_cert = requests.get(f"{args.root_url}/ca_cert").json()
 
-# ---------- получение собственного сертификата от Root ----------
+# Получение собственного сертификата от корневого УЦ
 if CERT_FILE.exists():
     ca_cert = json.loads(CERT_FILE.read_text())
 else:
@@ -53,14 +53,14 @@ else:
     ca_cert = requests.post(f"{args.root_url}/sign", json=csr).json()
     CERT_FILE.write_text(json.dumps(ca_cert))
 
-# ---------- база данных выданных клиентских сертификатов ----------
+# База данных выданных клиентских сертификатов
 if DB_FILE.exists():
     client_db = json.loads(DB_FILE.read_text())
 else:
     client_db = {}
     DB_FILE.write_text(json.dumps(client_db))
 
-# ---------- FastAPI ----------
+# Настройка FastAPI
 app = FastAPI(title=args.name)
 
 class CSR(BaseModel):
@@ -98,7 +98,7 @@ async def get_client_cert(client_id: str):
         raise HTTPException(404, "Неизвестный клиент")
     return cert
 
-# ---------- run ----------
+# Запуск сервера
 if __name__ == "__main__":
     import uvicorn, sys
     uvicorn.run("ca_node:app", host="0.0.0.0", port=args.port, log_level="info")

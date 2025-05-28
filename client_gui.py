@@ -14,14 +14,14 @@ from fastapi import FastAPI, Request
 import rsa_utils as ru
 import uvicorn
 
-# ---------- CLI ----------
+# Интерфейс командной строки
 p = argparse.ArgumentParser()
 p.add_argument("--id", required=True, help="имя клиента (A1 / B1 / ...)")
 p.add_argument("--ca-url", required=True, help="URL своего УЦ")
 p.add_argument("--listen", type=int, required=True, help="порт входящих сообщений")
 args = p.parse_args()
 
-# Загружаем настройки
+# Загрузка конфигурации
 SETTINGS_FILE = Path(__file__).parent / "settings.json"
 with open(SETTINGS_FILE) as f:
     settings = json.load(f)
@@ -31,9 +31,9 @@ CLIENT_DIR  = Path(__file__).parent / args.id
 CLIENT_DIR.mkdir(exist_ok=True)
 KEY_FILE    = CLIENT_DIR / "key.json"
 CERT_FILE   = CLIENT_DIR / "cert.json"
-CHAIN_FILE  = CLIENT_DIR / "chain.json"   # [client, CA, root]
+CHAIN_FILE  = CLIENT_DIR / "chain.json"   # Цепочка сертификатов [клиент, УЦ, корневой УЦ]
 
-# ---------- RSA-ключи ----------
+# Криптографические ключи RSA
 def init_keys():
     if KEY_FILE.exists():
         return json.loads(KEY_FILE.read_text())
@@ -44,7 +44,7 @@ def init_keys():
     return key
 my_key = init_keys()
 
-# ---------- Tkinter helpers ----------
+# Вспомогательные функции Tkinter
 root = tk.Tk()
 root.title(f"Client {args.id}")
 
@@ -56,7 +56,7 @@ def log(msg: str):
     text_log.insert(tk.END, msg + "\n")
     text_log.see(tk.END)
 
-# ---------- выдача сертификата ----------
+# Процедура получения сертификата
 def request_cert():
     csr = {"subject": args.id,
            "pubkey": {"e": my_key["e"], "n": my_key["n"]}}
@@ -64,22 +64,22 @@ def request_cert():
         cert = requests.post(f"{args.ca_url}/sign", json=csr).json()
     except Exception as ex:
         messagebox.showerror("Ошибка", str(ex)); return
-    # цепочка: client -> CA -> Root
+    # Формирование цепочки: клиент -> УЦ -> корневой УЦ
     ca_cert   = requests.get(f"{args.ca_url}/ca_cert").json()
     root_cert = requests.get(f"{ROOT_URL}/ca_cert").json()
     for obj, name in [(cert, "client"), (ca_cert, "CA"), (root_cert, "root")]:
         if "signature" not in obj:
             messagebox.showerror("Ошибка", f"{name} cert без подписи"); return
-    # сохраняем
+    # Сохранение сертификата
     CERT_FILE.write_text(json.dumps(cert))
     CHAIN_FILE.write_text(json.dumps([cert, ca_cert, root_cert]))
     log("Сертификат получен и сохранён")
 
-# ---------- получение чужого сертификата ----------
+# Получение сертификата другого пользователя
 def fetch_remote_cert(remote_id: str):
     ca_url = entry_to.get().strip()
     if not ca_url.startswith("http"):
-        # если ввели id, пытаемся определить CAURL автоматически
+        # Автоматическое определение URL удостоверяющего центра по идентификатору
         if remote_id.startswith("A"):
             ca_url = "http://localhost:8001"
         else:
@@ -92,7 +92,7 @@ def fetch_remote_cert(remote_id: str):
         messagebox.showerror("Ошибка", str(e)); return
     return [cert, ca_cert, root_cert]
 
-# ---------- отправка ----------
+# Отправка сообщения
 def send_message():
     to_id = entry_to.get().strip()
     if not to_id:
@@ -107,7 +107,7 @@ def send_message():
     m_int = ru.text_to_int(text)
     s_int = ru.rsa_sign(m_int, (my_key["d"], my_key["n"]))
     c_int = ru.rsa_encrypt(m_int, (remote_pub["e"], remote_pub["n"]))
-    # прикладываем СВОЮ цепочку
+    # Добавление собственной цепочки сертификатов
     my_chain = json.loads(CHAIN_FILE.read_text())
     packet = {"from": args.id, "to": to_id,
               "cipher": c_int, "signature": s_int,
@@ -119,23 +119,23 @@ def send_message():
     except Exception as e:
         messagebox.showerror("Ошибка отправки", str(e))
 
-# ---------- проверка цепочки ----------
+# Проверка цепочки сертификатов
 def verify_chain(chain):
     def verify(cert, issuer_cert):
         body = cert.copy(); sig = body.pop("signature")
         to_int = ru.text_to_int(json.dumps(body, sort_keys=True))
         pub = issuer_cert["pubkey"]
         return ru.rsa_verify(to_int, sig, (pub["e"], pub["n"]))
-    # client -> CA -> Root
+    # Проверка цепочки: клиент -> УЦ -> корневой УЦ
     client, ca, root = chain
     if not verify(client, ca): return False
     if not verify(ca,    root): return False
-    # root самоподписан
+    # Проверка самоподписанного корневого сертификата
     root_body = root.copy(); sig = root_body.pop("signature")
     to_int = ru.text_to_int(json.dumps(root_body, sort_keys=True))
     return ru.rsa_verify(to_int, sig, (root["pubkey"]["e"], root["pubkey"]["n"]))
 
-# ---------- FastAPI приёмник ----------
+# Обработчик входящих сообщений FastAPI
 api = FastAPI()
 @api.post("/receive")
 async def receive(req: Request):
@@ -157,7 +157,7 @@ def start_api():
 
 threading.Thread(target=start_api, daemon=True).start()
 
-# ---------- GUI layout ----------
+# Формирование графического интерфейса
 tk.Label(root, text="Получатель (ID):").grid(row=0, column=0, sticky="e")
 entry_to.grid(row=0, column=1)
 tk.Button(root, text="Запросить свой сертификат", command=request_cert
