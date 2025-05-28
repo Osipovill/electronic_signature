@@ -21,6 +21,12 @@ p.add_argument("--ca-url", required=True, help="URL своего УЦ")
 p.add_argument("--listen", type=int, required=True, help="порт входящих сообщений")
 args = p.parse_args()
 
+# Загружаем настройки
+SETTINGS_FILE = Path(__file__).parent / "settings.json"
+with open(SETTINGS_FILE) as f:
+    settings = json.load(f)
+ROOT_URL = f"http://localhost:{settings['root']['port']}"
+
 CLIENT_DIR  = Path(__file__).parent / args.id
 CLIENT_DIR.mkdir(exist_ok=True)
 KEY_FILE    = CLIENT_DIR / "key.json"
@@ -60,7 +66,7 @@ def request_cert():
         messagebox.showerror("Ошибка", str(ex)); return
     # цепочка: client -> CA -> Root
     ca_cert   = requests.get(f"{args.ca_url}/ca_cert").json()
-    root_cert = requests.get(f"{args.ca_url}/root_cert").json()
+    root_cert = requests.get(f"{ROOT_URL}/ca_cert").json()
     for obj, name in [(cert, "client"), (ca_cert, "CA"), (root_cert, "root")]:
         if "signature" not in obj:
             messagebox.showerror("Ошибка", f"{name} cert без подписи"); return
@@ -81,7 +87,7 @@ def fetch_remote_cert(remote_id: str):
     try:
         cert = requests.get(f"{ca_url}/cert/{remote_id}").json()
         ca_cert   = requests.get(f"{ca_url}/ca_cert").json()
-        root_cert = requests.get("http://localhost:8000/ca_cert").json()
+        root_cert = requests.get(f"{ROOT_URL}/ca_cert").json()
     except Exception as e:
         messagebox.showerror("Ошибка", str(e)); return
     return [cert, ca_cert, root_cert]
