@@ -1,0 +1,6 @@
+fastapi==0.110.0        # веб-фреймворк для всех CA-сервисов
+uvicorn[standard]==0.23.2  # ASGI-сервер (с поддержкой asyncio, websockets, reload и пр.)
+requests==2.31.0        # HTTP-клиент для вызовов CA и отправки сообщений
+pydantic>=2.7.0         # схемы в FastAPI (подтягивается как зависимость, но укажем явно)
+anyio>=4.0.0            # асинхронный бекэнд FastAPI/uvicorn
+

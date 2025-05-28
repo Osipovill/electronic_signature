@@ -1,0 +1,8 @@
+{
+    "root": {"port": 8000},
+    "CA A": {"port": 8001},
+    "CA B": {"port": 8002},
+    "A1":   {"ca": "http://localhost:8001", "listen": 9001},
+    "B1":   {"ca": "http://localhost:8002", "listen": 9002}
+  }
+  
