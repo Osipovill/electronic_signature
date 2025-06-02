@@ -9,7 +9,7 @@ GUI-клиент (Tkinter) + приём входящих сообщений (Fas
 import argparse, json, threading, requests
 from pathlib import Path
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 from fastapi import FastAPI, Request
 import rsa_utils as ru
 import uvicorn
@@ -25,7 +25,7 @@ args = p.parse_args()
 SETTINGS_FILE = Path(__file__).parent / "settings.json"
 with open(SETTINGS_FILE) as f:
     settings = json.load(f)
-ROOT_URL = f"http://localhost:{settings['root']['port']}"
+ROOT_URL = f"http://{settings['root']['host']}:{settings['root']['port']}"
 
 CLIENT_DIR  = Path(__file__).parent / args.id
 CLIENT_DIR.mkdir(exist_ok=True)
@@ -48,9 +48,110 @@ my_key = init_keys()
 root = tk.Tk()
 root.title(f"Client {args.id}")
 
-text_msg   = tk.Text(root, height=4, width=50)
-text_log   = tk.Text(root, height=10, width=70)
-entry_to   = tk.Entry(root, width=15)
+# Создание вкладок
+notebook = ttk.Notebook(root)
+notebook.grid(row=0, column=0, columnspan=3, padx=5, pady=5)
+
+# Вкладка сообщений
+msg_frame = ttk.Frame(notebook)
+notebook.add(msg_frame, text="Сообщения")
+
+text_msg   = tk.Text(msg_frame, height=4, width=50)
+text_log   = tk.Text(msg_frame, height=10, width=70)
+entry_to   = tk.Entry(msg_frame, width=15)
+
+# Вкладка ключей и сертификатов
+keys_frame = ttk.Frame(notebook)
+notebook.add(keys_frame, text="Ключи и сертификаты")
+
+# Создание фреймов для ключей и сертификатов
+keys_subframe = ttk.LabelFrame(keys_frame, text="Ключи")
+keys_subframe.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+
+cert_subframe = ttk.LabelFrame(keys_frame, text="Сертификаты")
+cert_subframe.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
+
+# Поля для отображения и редактирования ключей
+tk.Label(keys_subframe, text="Закрытый ключ (d):").grid(row=0, column=0, sticky="w", padx=5)
+private_key_d = tk.Entry(keys_subframe, width=40)
+private_key_d.grid(row=0, column=1, padx=5, pady=2)
+
+tk.Label(keys_subframe, text="Модуль (n):").grid(row=1, column=0, sticky="w", padx=5)
+key_n = tk.Entry(keys_subframe, width=40)
+key_n.grid(row=1, column=1, padx=5, pady=2)
+
+tk.Label(keys_subframe, text="Открытый ключ (e):").grid(row=2, column=0, sticky="w", padx=5)
+public_key_e = tk.Entry(keys_subframe, width=40)
+public_key_e.grid(row=2, column=1, padx=5, pady=2)
+
+# Поля для отображения и редактирования сертификатов
+tk.Label(cert_subframe, text="Сертификат:").grid(row=0, column=0, sticky="w", padx=5)
+cert_text = tk.Text(cert_subframe, height=6, width=50)
+cert_text.grid(row=0, column=1, padx=5, pady=2)
+
+tk.Label(cert_subframe, text="Цепочка сертификатов:").grid(row=1, column=0, sticky="w", padx=5)
+chain_text = tk.Text(cert_subframe, height=10, width=50)
+chain_text.grid(row=1, column=1, padx=5, pady=2)
+
+# Кнопки для управления ключами и сертификатами
+def save_keys():
+    try:
+        new_key = {
+            "d": int(private_key_d.get()),
+            "n": int(key_n.get()),
+            "e": int(public_key_e.get())
+        }
+        KEY_FILE.write_text(json.dumps(new_key))
+        global my_key
+        my_key = new_key
+        messagebox.showinfo("Успех", "Ключи успешно сохранены")
+    except ValueError:
+        messagebox.showerror("Ошибка", "Введите корректные числовые значения")
+
+def save_certs():
+    try:
+        cert_data = json.loads(cert_text.get("1.0", tk.END))
+        chain_data = json.loads(chain_text.get("1.0", tk.END))
+        CERT_FILE.write_text(json.dumps(cert_data))
+        CHAIN_FILE.write_text(json.dumps(chain_data))
+        messagebox.showinfo("Успех", "Сертификаты успешно сохранены")
+    except json.JSONDecodeError:
+        messagebox.showerror("Ошибка", "Неверный формат JSON")
+    except Exception as e:
+        messagebox.showerror("Ошибка", str(e))
+
+def load_keys_to_gui():
+    private_key_d.delete(0, tk.END)
+    key_n.delete(0, tk.END)
+    public_key_e.delete(0, tk.END)
+    private_key_d.insert(0, str(my_key["d"]))
+    key_n.insert(0, str(my_key["n"]))
+    public_key_e.insert(0, str(my_key["e"]))
+
+def load_certs_to_gui():
+    cert_text.delete("1.0", tk.END)
+    chain_text.delete("1.0", tk.END)
+    if CERT_FILE.exists():
+        cert_text.insert("1.0", CERT_FILE.read_text())
+    if CHAIN_FILE.exists():
+        chain_text.insert("1.0", CHAIN_FILE.read_text())
+
+# Кнопки для ключей
+keys_btn_frame = ttk.Frame(keys_subframe)
+keys_btn_frame.grid(row=3, column=0, columnspan=2, pady=5)
+tk.Button(keys_btn_frame, text="Сохранить ключи", command=save_keys).pack(side=tk.LEFT, padx=5)
+tk.Button(keys_btn_frame, text="Показать ключи", command=load_keys_to_gui).pack(side=tk.LEFT, padx=5)
+
+# Кнопки для сертификатов
+cert_btn_frame = ttk.Frame(cert_subframe)
+cert_btn_frame.grid(row=2, column=0, columnspan=2, pady=5)
+tk.Button(cert_btn_frame, text="Сохранить сертификаты", command=save_certs).pack(side=tk.LEFT, padx=5)
+tk.Button(cert_btn_frame, text="Показать сертификаты", command=load_certs_to_gui).pack(side=tk.LEFT, padx=5)
+
+
+# Загрузка начальных значений
+load_keys_to_gui()
+load_certs_to_gui()
 
 def log(msg: str):
     text_log.insert(tk.END, msg + "\n")
@@ -81,9 +182,9 @@ def fetch_remote_cert(remote_id: str):
     if not ca_url.startswith("http"):
         # Автоматическое определение URL удостоверяющего центра по идентификатору
         if remote_id.startswith("A"):
-            ca_url = "http://localhost:8001"
+            ca_url = f"http://{settings['CA A']['host']}:8001"
         else:
-            ca_url = "http://localhost:8002"
+            ca_url = f"http://{settings['CA B']['host']}:8002"
     try:
         cert = requests.get(f"{ca_url}/cert/{remote_id}").json()
         ca_cert   = requests.get(f"{ca_url}/ca_cert").json()
@@ -112,9 +213,9 @@ def send_message():
     packet = {"from": args.id, "to": to_id,
               "cipher": c_int, "signature": s_int,
               "chain": my_chain}
-    remote_port = 9001 if to_id.startswith("A") else 9002
+
     try:
-        requests.post(f"http://localhost:{remote_port}/receive", json=packet, timeout=5)
+        requests.post(f"http://{settings[to_id]['host']}:{settings[to_id]['listen']}/receive", json=packet, timeout=5)
         log(f"→ {to_id}: отправлено")
     except Exception as e:
         messagebox.showerror("Ошибка отправки", str(e))
@@ -157,16 +258,16 @@ def start_api():
 
 threading.Thread(target=start_api, daemon=True).start()
 
-# Формирование графического интерфейса
-tk.Label(root, text="Получатель (ID):").grid(row=0, column=0, sticky="e")
+# Размещение элементов на вкладке сообщений
+tk.Label(msg_frame, text="Получатель (ID):").grid(row=0, column=0, sticky="e")
 entry_to.grid(row=0, column=1)
-tk.Button(root, text="Запросить свой сертификат", command=request_cert
+tk.Button(msg_frame, text="Запросить свой сертификат", command=request_cert
           ).grid(row=0, column=2, padx=5)
-tk.Label(root, text="Сообщение:").grid(row=1, column=0, sticky="nw")
+tk.Label(msg_frame, text="Сообщение:").grid(row=1, column=0, sticky="nw")
 text_msg.grid(row=1, column=1, columnspan=2)
-tk.Button(root, text="Отправить", command=send_message
+tk.Button(msg_frame, text="Отправить", command=send_message
           ).grid(row=2, column=1, pady=3, sticky="e")
-tk.Label(root, text="Лог:").grid(row=3, column=0, sticky="nw")
+tk.Label(msg_frame, text="Лог:").grid(row=3, column=0, sticky="nw")
 text_log.grid(row=3, column=1, columnspan=2)
 
 log(f"Клиент {args.id} запущен, слушаю порт {args.listen}")
