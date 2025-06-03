@@ -2,7 +2,7 @@
     "root": {"host": "localhost", "port": 8003},
     "CA A": {"host": "localhost", "port": 8001},
     "CA B": {"host": "localhost", "port": 8002},
-    "A14":   {"host": "localhost","ca": "http://localhost:8001", "listen": 9001},
-    "B14":   {"host": "localhost","ca": "http://localhost:8002", "listen": 9002}
-  }
+    "A1":   {"host": "localhost","ca": "http://localhost:8001", "listen": 9001},
+    "B1":   {"host": "localhost","ca": "http://localhost:8002", "listen": 9002}
+}
   

@@ -9,10 +9,84 @@ GUI-клиент (Tkinter) + приём входящих сообщений (Fas
 import argparse, json, threading, requests
 from pathlib import Path
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox, ttk, font
 from fastapi import FastAPI, Request
 import rsa_utils as ru
 import uvicorn
+import ctypes
+
+# Color scheme
+COLORS = {
+    'bg': '#1e1e1e',  # Dark background
+    'secondary_bg': '#252526',  # Slightly lighter background for contrast
+    'primary': '#d4a72c',  # Soft amber/gold
+    'primary_dark': '#b38a20',  # Darker amber for hover
+    'secondary': '#c17f59',  # Soft copper/orange
+    'secondary_dark': '#a66b48',  # Darker copper for hover
+    'text': '#e0e0e0',  # Slightly off-white text
+    'text_secondary': '#a0a0a0',  # Dimmed text
+    'input_bg': '#2d2d2d',  # Dark input background
+    'input_border': '#404040',  # Input border color
+    'error': '#cf6679',  # Soft red
+    'warning': '#e6b800',  # Amber warning
+}
+
+# Styles
+STYLES = {
+    'button': {
+        'bg': COLORS['primary'],
+        'fg': '#1a1a1a',  # Dark text for better contrast on light buttons
+        'font': ('Segoe UI', 10),
+        'padx': 15,
+        'pady': 8,
+        'relief': 'flat',
+        'borderwidth': 0,
+        'activebackground': COLORS['primary_dark'],
+        'activeforeground': '#1a1a1a'  # Keep dark text on hover
+    },
+    'secondary_button': {
+        'bg': COLORS['secondary'],
+        'fg': '#1a1a1a',  # Dark text for better contrast on light buttons
+        'font': ('Segoe UI', 10),
+        'padx': 15,
+        'pady': 8,
+        'relief': 'flat',
+        'borderwidth': 0,
+        'activebackground': COLORS['secondary_dark'],
+        'activeforeground': '#1a1a1a'  # Keep dark text on hover
+    },
+    'label': {
+        'font': ('Segoe UI', 10),
+        'fg': COLORS['text'],
+        'bg': COLORS['bg']
+    },
+    'entry': {
+        'font': ('Segoe UI', 10),
+        'bg': COLORS['input_bg'],
+        'fg': COLORS['text'],
+        'insertbackground': COLORS['text'],
+        'relief': 'flat',
+        'borderwidth': 1,
+        'highlightthickness': 1,
+        'highlightcolor': COLORS['primary'],
+        'highlightbackground': COLORS['input_border']
+    },
+    'text': {
+        'font': ('Segoe UI', 10),
+        'bg': COLORS['input_bg'],
+        'fg': COLORS['text'],
+        'insertbackground': COLORS['text'],
+        'relief': 'flat',
+        'borderwidth': 1,
+        'highlightthickness': 1,
+        'highlightcolor': COLORS['primary'],
+        'highlightbackground': COLORS['input_border'],
+        'padx': 5,
+        'pady': 5,
+        'selectbackground': COLORS['primary'],
+        'selectforeground': '#1a1a1a'  # Dark text for selected text
+    }
+}
 
 # Интерфейс командной строки
 p = argparse.ArgumentParser()
@@ -47,18 +121,69 @@ my_key = init_keys()
 # Вспомогательные функции Tkinter
 root = tk.Tk()
 root.title(f"Client {args.id}")
+root.configure(bg=COLORS['bg'])
+
+# Set dark title bar for Windows
+try:
+    root.update()
+    DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+    set_window_attribute = ctypes.windll.dwmapi.DwmSetWindowAttribute
+    hwnd = ctypes.windll.user32.GetParent(root.winfo_id())
+    rendering_policy = ctypes.c_int(2)
+    set_window_attribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                        ctypes.byref(rendering_policy),
+                        ctypes.sizeof(rendering_policy))
+except:
+    pass  # Ignore if not on Windows or if it fails
+
+# Apply styles to ttk widgets
+style = ttk.Style()
+style.theme_use('clam')
+style.configure('TNotebook', background=COLORS['bg'])
+style.configure('TNotebook.Tab', 
+    background=COLORS['secondary_bg'],
+    foreground=COLORS['text'],
+    padding=[12, 8],
+    font=('Segoe UI', 10))
+style.map('TNotebook.Tab',
+    background=[('selected', COLORS['bg'])],
+    foreground=[('selected', COLORS['text'])])
+style.configure('TFrame', background=COLORS['bg'])
+style.configure('TLabelframe', 
+    background=COLORS['bg'],
+    foreground=COLORS['text'])
+style.configure('TLabelframe.Label', 
+    background=COLORS['bg'],
+    foreground=COLORS['text'],
+    font=('Segoe UI', 10, 'bold'))
+
+# Custom button style with hover effect
+class HoverButton(tk.Button):
+    def __init__(self, master, **kw):
+        super().__init__(master, **kw)
+        self.defaultBackground = self["background"]
+        self.bind("<Enter>", self.on_enter)
+        self.bind("<Leave>", self.on_leave)
+
+    def on_enter(self, e):
+        if self["state"] != "disabled":
+            self["background"] = COLORS['primary_dark'] if self.defaultBackground == COLORS['primary'] else COLORS['secondary_dark']
+
+    def on_leave(self, e):
+        if self["state"] != "disabled":
+            self["background"] = self.defaultBackground
 
 # Создание вкладок
 notebook = ttk.Notebook(root)
-notebook.grid(row=0, column=0, columnspan=3, padx=5, pady=5)
+notebook.grid(row=0, column=0, columnspan=3, padx=10, pady=10, sticky="nsew")
 
 # Вкладка сообщений
 msg_frame = ttk.Frame(notebook)
 notebook.add(msg_frame, text="Сообщения")
 
-text_msg   = tk.Text(msg_frame, height=4, width=50)
-text_log   = tk.Text(msg_frame, height=10, width=70)
-entry_to   = tk.Entry(msg_frame, width=15)
+text_msg = tk.Text(msg_frame, **STYLES['text'], height=4, width=50)
+text_log = tk.Text(msg_frame, **STYLES['text'], height=10, width=70)
+entry_to = tk.Entry(msg_frame, **STYLES['entry'], width=15)
 
 # Вкладка ключей и сертификатов
 keys_frame = ttk.Frame(notebook)
@@ -66,32 +191,32 @@ notebook.add(keys_frame, text="Ключи и сертификаты")
 
 # Создание фреймов для ключей и сертификатов
 keys_subframe = ttk.LabelFrame(keys_frame, text="Ключи")
-keys_subframe.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+keys_subframe.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
 cert_subframe = ttk.LabelFrame(keys_frame, text="Сертификаты")
-cert_subframe.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
+cert_subframe.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
 
 # Поля для отображения и редактирования ключей
-tk.Label(keys_subframe, text="Закрытый ключ (d):").grid(row=0, column=0, sticky="w", padx=5)
-private_key_d = tk.Entry(keys_subframe, width=40)
-private_key_d.grid(row=0, column=1, padx=5, pady=2)
+tk.Label(keys_subframe, text="Закрытый ключ (d):", **STYLES['label']).grid(row=0, column=0, sticky="w", padx=5)
+private_key_d = tk.Entry(keys_subframe, **STYLES['entry'], width=40)
+private_key_d.grid(row=0, column=1, padx=5, pady=5)
 
-tk.Label(keys_subframe, text="Модуль (n):").grid(row=1, column=0, sticky="w", padx=5)
-key_n = tk.Entry(keys_subframe, width=40)
-key_n.grid(row=1, column=1, padx=5, pady=2)
+tk.Label(keys_subframe, text="Модуль (n):", **STYLES['label']).grid(row=1, column=0, sticky="w", padx=5)
+key_n = tk.Entry(keys_subframe, **STYLES['entry'], width=40)
+key_n.grid(row=1, column=1, padx=5, pady=5)
 
-tk.Label(keys_subframe, text="Открытый ключ (e):").grid(row=2, column=0, sticky="w", padx=5)
-public_key_e = tk.Entry(keys_subframe, width=40)
-public_key_e.grid(row=2, column=1, padx=5, pady=2)
+tk.Label(keys_subframe, text="Открытый ключ (e):", **STYLES['label']).grid(row=2, column=0, sticky="w", padx=5)
+public_key_e = tk.Entry(keys_subframe, **STYLES['entry'], width=40)
+public_key_e.grid(row=2, column=1, padx=5, pady=5)
 
 # Поля для отображения и редактирования сертификатов
-tk.Label(cert_subframe, text="Сертификат:").grid(row=0, column=0, sticky="w", padx=5)
-cert_text = tk.Text(cert_subframe, height=6, width=50)
-cert_text.grid(row=0, column=1, padx=5, pady=2)
+tk.Label(cert_subframe, text="Сертификат:", **STYLES['label']).grid(row=0, column=0, sticky="w", padx=5)
+cert_text = tk.Text(cert_subframe, **STYLES['text'], height=6, width=50)
+cert_text.grid(row=0, column=1, padx=5, pady=5)
 
-tk.Label(cert_subframe, text="Цепочка сертификатов:").grid(row=1, column=0, sticky="w", padx=5)
-chain_text = tk.Text(cert_subframe, height=10, width=50)
-chain_text.grid(row=1, column=1, padx=5, pady=2)
+tk.Label(cert_subframe, text="Цепочка сертификатов:", **STYLES['label']).grid(row=1, column=0, sticky="w", padx=5)
+chain_text = tk.Text(cert_subframe, **STYLES['text'], height=10, width=50)
+chain_text.grid(row=1, column=1, padx=5, pady=5)
 
 # Кнопки для управления ключами и сертификатами
 def save_keys():
@@ -138,15 +263,15 @@ def load_certs_to_gui():
 
 # Кнопки для ключей
 keys_btn_frame = ttk.Frame(keys_subframe)
-keys_btn_frame.grid(row=3, column=0, columnspan=2, pady=5)
-tk.Button(keys_btn_frame, text="Сохранить ключи", command=save_keys).pack(side=tk.LEFT, padx=5)
-tk.Button(keys_btn_frame, text="Показать ключи", command=load_keys_to_gui).pack(side=tk.LEFT, padx=5)
+keys_btn_frame.grid(row=3, column=0, columnspan=2, pady=10)
+HoverButton(keys_btn_frame, text="Сохранить ключи", command=save_keys, **STYLES['button']).pack(side=tk.LEFT, padx=5)
+HoverButton(keys_btn_frame, text="Показать ключи", command=load_keys_to_gui, **STYLES['secondary_button']).pack(side=tk.LEFT, padx=5)
 
 # Кнопки для сертификатов
 cert_btn_frame = ttk.Frame(cert_subframe)
-cert_btn_frame.grid(row=2, column=0, columnspan=2, pady=5)
-tk.Button(cert_btn_frame, text="Сохранить сертификаты", command=save_certs).pack(side=tk.LEFT, padx=5)
-tk.Button(cert_btn_frame, text="Показать сертификаты", command=load_certs_to_gui).pack(side=tk.LEFT, padx=5)
+cert_btn_frame.grid(row=2, column=0, columnspan=2, pady=10)
+HoverButton(cert_btn_frame, text="Сохранить сертификаты", command=save_certs, **STYLES['button']).pack(side=tk.LEFT, padx=5)
+HoverButton(cert_btn_frame, text="Показать сертификаты", command=load_certs_to_gui, **STYLES['secondary_button']).pack(side=tk.LEFT, padx=5)
 
 
 # Загрузка начальных значений
@@ -259,16 +384,82 @@ def start_api():
 threading.Thread(target=start_api, daemon=True).start()
 
 # Размещение элементов на вкладке сообщений
-tk.Label(msg_frame, text="Получатель (ID):").grid(row=0, column=0, sticky="e")
-entry_to.grid(row=0, column=1)
-tk.Button(msg_frame, text="Запросить свой сертификат", command=request_cert
-          ).grid(row=0, column=2, padx=5)
-tk.Label(msg_frame, text="Сообщение:").grid(row=1, column=0, sticky="nw")
-text_msg.grid(row=1, column=1, columnspan=2)
-tk.Button(msg_frame, text="Отправить", command=send_message
-          ).grid(row=2, column=1, pady=3, sticky="e")
-tk.Label(msg_frame, text="Лог:").grid(row=3, column=0, sticky="nw")
-text_log.grid(row=3, column=1, columnspan=2)
+tk.Label(msg_frame, text="Получатель (ID):", **STYLES['label']).grid(row=0, column=0, sticky="e", padx=5, pady=5)
+entry_to.grid(row=0, column=1, padx=5, pady=5)
+HoverButton(msg_frame, text="Запросить свой сертификат", command=request_cert, **STYLES['button']
+          ).grid(row=0, column=2, padx=5, pady=5)
+
+tk.Label(msg_frame, text="Сообщение:", **STYLES['label']).grid(row=1, column=0, sticky="nw", padx=5)
+text_msg.grid(row=1, column=1, columnspan=2, padx=5, pady=5)
+
+HoverButton(msg_frame, text="Отправить", command=send_message, **STYLES['button']
+          ).grid(row=2, column=1, pady=10, sticky="e")
+
+tk.Label(msg_frame, text="Лог:", **STYLES['label']).grid(row=3, column=0, sticky="nw", padx=5)
+text_log.grid(row=3, column=1, columnspan=2, padx=5, pady=5)
+
+# Configure grid weights for better resizing
+root.grid_rowconfigure(0, weight=1)
+root.grid_columnconfigure(0, weight=1)
+msg_frame.grid_columnconfigure(1, weight=1)
+keys_frame.grid_columnconfigure(0, weight=1)
+
+# Custom messagebox styling
+def custom_messagebox(title, message, type_="info"):
+    top = tk.Toplevel()
+    top.title(title)
+    top.configure(bg=COLORS['bg'])
+    top.geometry("300x150")
+    
+    # Frame for better organization
+    frame = ttk.Frame(top)
+    frame.pack(expand=True, fill='both', padx=10, pady=10)
+    
+    # Message with proper wrapping
+    tk.Label(frame, 
+        text=message,
+        wraplength=250,
+        justify='center',
+        bg=COLORS['bg'],
+        fg=COLORS['text'],
+        font=('Segoe UI', 10)).pack(expand=True, pady=10)
+    
+    # Button with appropriate color based on message type
+    button_style = STYLES['button'].copy()
+    if type_ == "error":
+        button_style['bg'] = COLORS['error']
+    elif type_ == "warning":
+        button_style['bg'] = COLORS['warning']
+    
+    HoverButton(frame, text="OK", command=top.destroy, **button_style).pack(pady=10)
+    
+    # Make it modal
+    top.transient(root)
+    top.grab_set()
+    
+    # Center the window
+    top.update_idletasks()
+    width = top.winfo_width()
+    height = top.winfo_height()
+    x = (top.winfo_screenwidth() // 2) - (width // 2)
+    y = (top.winfo_screenheight() // 2) - (height // 2)
+    top.geometry(f'{width}x{height}+{x}+{y}')
+    
+    root.wait_window(top)
+
+# Override the original messagebox functions
+def show_info(title, message):
+    custom_messagebox(title, message, "info")
+
+def show_error(title, message):
+    custom_messagebox(title, message, "error")
+
+def show_warning(title, message):
+    custom_messagebox(title, message, "warning")
+
+messagebox.showinfo = show_info
+messagebox.showerror = show_error
+messagebox.showwarning = show_warning
 
 log(f"Клиент {args.id} запущен, слушаю порт {args.listen}")
 root.mainloop()
