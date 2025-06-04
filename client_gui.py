@@ -351,15 +351,39 @@ def verify_chain(chain):
         body = cert.copy(); sig = body.pop("signature")
         to_int = ru.text_to_int(json.dumps(body, sort_keys=True))
         pub = issuer_cert["pubkey"]
-        return ru.rsa_verify(to_int, sig, (pub["e"], pub["n"]))
+        result = ru.rsa_verify(to_int, sig, (pub["e"], pub["n"]))
+        log(f"Проверка подписи: subject={body.get('subject', 'unknown')}, "
+            f"issuer={issuer_cert.get('subject', 'unknown')}, "
+            f"результат={result}")
+        return result
+
     # Проверка цепочки: клиент -> УЦ -> корневой УЦ
     client, ca, root = chain
-    if not verify(client, ca): return False
-    if not verify(ca,    root): return False
+    
+    log("=== Начало проверки цепочки сертификатов ===")
+    log(f"Клиент: {client.get('subject', 'unknown')}")
+    log(f"УЦ: {ca.get('subject', 'unknown')}")
+    log(f"Корневой УЦ: {root.get('subject', 'unknown')}")
+    
+    # Проверка сертификата клиента
+    if not verify(client, ca):
+        return False, "Недействительный сертификат отправителя"
+    
+    # Проверка сертификата УЦ
+    if not verify(ca, root):
+        return False, "Недействительный сертификат УЦ отправителя"
+    
     # Проверка самоподписанного корневого сертификата
     root_body = root.copy(); sig = root_body.pop("signature")
     to_int = ru.text_to_int(json.dumps(root_body, sort_keys=True))
-    return ru.rsa_verify(to_int, sig, (root["pubkey"]["e"], root["pubkey"]["n"]))
+    root_result = ru.rsa_verify(to_int, sig, (root["pubkey"]["e"], root["pubkey"]["n"]))
+    log(f"Проверка корневого сертификата: результат={root_result}")
+    
+    if not root_result:
+        return False, "Недействительный сертификат корневого УЦ"
+    
+    log("=== Проверка цепочки сертификатов успешно завершена ===")
+    return True, None
 
 # Обработчик входящих сообщений FastAPI
 api = FastAPI()
@@ -368,12 +392,24 @@ async def receive(req: Request):
     data = await req.json()
     cipher = int(data["cipher"]); signature = int(data["signature"])
     chain  = data["chain"]
-    if not verify_chain(chain):
-        log("!! Недействительна цепочка сертификатов"); return {"ok": False}
+    
+    # Проверка цепочки сертификатов с детальными ошибками
+    is_valid, error_msg = verify_chain(chain)
+    if not is_valid:
+        log(f"!! {error_msg}"); 
+        if not "корневого" in error_msg:
+            error_msg =  error_msg + " " + data['from']
+        else:   
+            error_msg = error_msg 
+        return {"ok": False, "error": error_msg}
+        
     sender_pub = chain[0]["pubkey"]
     m_int = ru.rsa_decrypt(cipher, (my_key["d"], my_key["n"]))
     if not ru.rsa_verify(m_int, signature, (sender_pub["e"], sender_pub["n"])):
-        log("!! Подпись недействительна"); return {"ok": False}
+        error_msg = "Подпись недействительна"
+        log(f"!! {error_msg}"); 
+        return {"ok": False, "error": error_msg + " " + data['from']}
+        
     text = ru.int_to_text(m_int)
     log(f"← {data['from']}: {text}")
     return {"ok": True}
